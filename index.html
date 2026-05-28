@@ -1,0 +1,1011 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI Phishing Email Detector</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:ital,wght@0,400;0,500;1,400&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0b0e13;
+      --surface: #111520;
+      --surface2: #181d2a;
+      --border: #1e2535;
+      --accent: #e84b4b;
+      --accent2: #f59e0b;
+      --safe: #10b981;
+      --text: #e8ecf4;
+      --text-muted: #7a889e;
+      --text-dim: #3c4a60;
+      --glow: rgba(232, 75, 75, 0.18);
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── NOISE OVERLAY ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.5;
+    }
+
+    /* ── GRID LINES ── */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(232,75,75,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(232,75,75,0.03) 1px, transparent 1px);
+      background-size: 48px 48px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── NAVBAR ── */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1.1rem 2.5rem;
+      background: rgba(11, 14, 19, 0.85);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav-logo {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: 1.05rem;
+      letter-spacing: 0.01em;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .nav-logo .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 10px var(--accent);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.8); }
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 2rem;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.88rem;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover { color: var(--text); }
+
+    .nav-cta {
+      background: var(--accent);
+      color: white !important;
+      padding: 0.45rem 1.1rem;
+      border-radius: 5px;
+      font-weight: 600 !important;
+      transition: opacity 0.2s !important;
+    }
+
+    .nav-cta:hover { opacity: 0.85; color: white !important; }
+
+    /* ── HERO ── */
+    .hero {
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 8rem 2rem 5rem;
+      overflow: hidden;
+    }
+
+    .hero-glow {
+      position: absolute;
+      top: 20%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 700px;
+      height: 400px;
+      background: radial-gradient(ellipse, rgba(232,75,75,0.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(232,75,75,0.1);
+      border: 1px solid rgba(232,75,75,0.3);
+      color: #f87171;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.75rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 0.4rem 1rem;
+      border-radius: 100px;
+      margin-bottom: 2rem;
+      animation: fadeUp 0.6s ease both;
+    }
+
+    .badge::before {
+      content: '';
+      width: 6px; height: 6px;
+      background: var(--accent);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--accent);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    h1 {
+      font-family: 'Syne', sans-serif;
+      font-size: clamp(3rem, 7vw, 6.5rem);
+      font-weight: 800;
+      line-height: 1.0;
+      letter-spacing: -0.03em;
+      animation: fadeUp 0.7s 0.1s ease both;
+      max-width: 900px;
+    }
+
+    h1 .line-red { color: var(--accent); }
+
+    .hero-sub {
+      margin-top: 1.5rem;
+      font-size: clamp(1rem, 2vw, 1.2rem);
+      color: var(--text-muted);
+      max-width: 540px;
+      line-height: 1.7;
+      font-weight: 300;
+      animation: fadeUp 0.7s 0.2s ease both;
+    }
+
+    .hero-actions {
+      margin-top: 2.5rem;
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      justify-content: center;
+      animation: fadeUp 0.7s 0.3s ease both;
+    }
+
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: var(--accent);
+      color: white;
+      text-decoration: none;
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 0.95rem;
+      padding: 0.85rem 2rem;
+      border-radius: 6px;
+      letter-spacing: 0.02em;
+      transition: transform 0.2s, box-shadow 0.2s;
+      box-shadow: 0 4px 20px rgba(232,75,75,0.35);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 32px rgba(232,75,75,0.45);
+    }
+
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: transparent;
+      color: var(--text);
+      text-decoration: none;
+      font-family: 'Syne', sans-serif;
+      font-weight: 600;
+      font-size: 0.95rem;
+      padding: 0.85rem 2rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      letter-spacing: 0.02em;
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    .btn-secondary:hover {
+      border-color: var(--text-muted);
+      background: var(--surface);
+    }
+
+    /* ── STATS STRIP ── */
+    .stats-strip {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      justify-content: center;
+      gap: 0;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      flex-wrap: wrap;
+    }
+
+    .stat-item {
+      padding: 1.8rem 3.5rem;
+      text-align: center;
+      border-right: 1px solid var(--border);
+      flex: 1;
+      min-width: 180px;
+      animation: fadeUp 0.6s ease both;
+    }
+
+    .stat-item:last-child { border-right: none; }
+
+    .stat-num {
+      font-family: 'Syne', sans-serif;
+      font-size: 2.2rem;
+      font-weight: 800;
+      color: var(--accent);
+      line-height: 1;
+    }
+
+    .stat-label {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-top: 0.4rem;
+    }
+
+    /* ── SECTION ── */
+    section {
+      position: relative;
+      z-index: 1;
+      padding: 6rem 2rem;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .section-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.72rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 0.75rem;
+    }
+
+    .section-title {
+      font-family: 'Syne', sans-serif;
+      font-size: clamp(1.8rem, 3.5vw, 2.8rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+      margin-bottom: 1rem;
+    }
+
+    .section-desc {
+      color: var(--text-muted);
+      font-size: 1rem;
+      max-width: 540px;
+      line-height: 1.7;
+      font-weight: 300;
+    }
+
+    /* ── FEATURES GRID ── */
+    .features-grid {
+      margin-top: 3.5rem;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1.5px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .feature-card {
+      background: var(--surface);
+      padding: 2.2rem 2rem;
+      transition: background 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .feature-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--accent), transparent);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .feature-card:hover { background: var(--surface2); }
+    .feature-card:hover::before { opacity: 1; }
+
+    .feat-icon {
+      width: 44px; height: 44px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
+      margin-bottom: 1.2rem;
+    }
+
+    .feat-icon.red { background: rgba(232,75,75,0.12); }
+    .feat-icon.amber { background: rgba(245,158,11,0.12); }
+    .feat-icon.green { background: rgba(16,185,129,0.12); }
+    .feat-icon.blue { background: rgba(99,179,237,0.12); }
+
+    .feat-title {
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 1.05rem;
+      margin-bottom: 0.6rem;
+    }
+
+    .feat-desc {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      line-height: 1.65;
+    }
+
+    /* ── HOW IT WORKS ── */
+    .how-grid {
+      margin-top: 3.5rem;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3rem;
+      align-items: center;
+    }
+
+    .steps {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .step {
+      display: flex;
+      gap: 1.5rem;
+      padding: 1.8rem 0;
+      border-bottom: 1px solid var(--border);
+      position: relative;
+    }
+
+    .step:last-child { border-bottom: none; }
+
+    .step-num {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.7rem;
+      font-weight: 500;
+      color: var(--accent);
+      letter-spacing: 0.1em;
+      min-width: 28px;
+      padding-top: 0.2rem;
+    }
+
+    .step-body {}
+
+    .step-title {
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 1rem;
+      margin-bottom: 0.4rem;
+    }
+
+    .step-desc {
+      font-size: 0.87rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    /* Terminal mockup */
+    .terminal {
+      background: #060912;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      font-family: 'DM Mono', monospace;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    }
+
+    .term-bar {
+      background: var(--surface);
+      padding: 0.75rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .term-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+    }
+
+    .t-red { background: #ff5f57; }
+    .t-yellow { background: #febc2e; }
+    .t-green { background: #28c840; }
+
+    .term-title {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-left: 0.5rem;
+      letter-spacing: 0.05em;
+    }
+
+    .term-body {
+      padding: 1.5rem;
+      font-size: 0.82rem;
+      line-height: 2;
+    }
+
+    .t-cmd { color: #7dd3fc; }
+    .t-comment { color: var(--text-dim); font-style: italic; }
+    .t-output { color: #a3e635; }
+    .t-warn { color: var(--accent2); }
+    .t-err { color: var(--accent); }
+    .t-prompt { color: var(--text-dim); }
+
+    /* ── TECH STACK ── */
+    .tech-grid {
+      margin-top: 3rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .tech-pill {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 0.7rem 1.2rem;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      font-weight: 500;
+      transition: border-color 0.2s, background 0.2s;
+      cursor: default;
+    }
+
+    .tech-pill:hover {
+      border-color: var(--text-muted);
+      background: var(--surface2);
+    }
+
+    .tech-pill .tp-icon {
+      font-size: 1.1rem;
+    }
+
+    /* ── SETUP SECTION ── */
+    .setup-steps {
+      margin-top: 2.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      counter-reset: setup;
+    }
+
+    .setup-step {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.4rem 1.6rem;
+      display: grid;
+      grid-template-columns: 2rem 1fr;
+      gap: 1rem;
+      align-items: start;
+      transition: border-color 0.2s;
+    }
+
+    .setup-step:hover { border-color: rgba(232,75,75,0.3); }
+
+    .setup-num {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.4rem;
+      font-weight: 800;
+      color: var(--accent);
+      line-height: 1;
+    }
+
+    .setup-step h4 {
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 0.95rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .setup-step pre {
+      background: #060912;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 0.6rem 0.9rem;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.78rem;
+      color: #a3e635;
+      overflow-x: auto;
+      margin-top: 0.5rem;
+    }
+
+    /* ── CTA BANNER ── */
+    .cta-banner {
+      position: relative;
+      z-index: 1;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      padding: 5rem 2rem;
+      text-align: center;
+      overflow: hidden;
+    }
+
+    .cta-banner::before {
+      content: '';
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 600px; height: 300px;
+      background: radial-gradient(ellipse, rgba(232,75,75,0.08) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .cta-banner h2 {
+      font-family: 'Syne', sans-serif;
+      font-size: clamp(1.8rem, 4vw, 3rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 1rem;
+    }
+
+    .cta-banner p {
+      color: var(--text-muted);
+      font-size: 1rem;
+      margin-bottom: 2rem;
+      max-width: 460px;
+      margin-left: auto;
+      margin-right: auto;
+      line-height: 1.7;
+    }
+
+    .cta-buttons {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    /* ── FOOTER ── */
+    footer {
+      position: relative;
+      z-index: 1;
+      padding: 2.5rem 2.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-top: 1px solid var(--border);
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .foot-logo {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: 0.95rem;
+      color: var(--text-muted);
+    }
+
+    .foot-links {
+      display: flex;
+      gap: 1.5rem;
+      list-style: none;
+    }
+
+    .foot-links a {
+      color: var(--text-dim);
+      text-decoration: none;
+      font-size: 0.83rem;
+      transition: color 0.2s;
+    }
+
+    .foot-links a:hover { color: var(--text); }
+
+    .foot-note {
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      font-family: 'DM Mono', monospace;
+    }
+
+    /* ── ANIMATIONS ── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .reveal {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity 0.6s ease, transform 0.6s ease;
+    }
+
+    .reveal.visible {
+      opacity: 1;
+      transform: none;
+    }
+
+    /* ── SCROLL INDICATOR ── */
+    .scroll-hint {
+      position: absolute;
+      bottom: 2.5rem;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--text-dim);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.68rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      animation: fadeUp 1s 0.6s ease both;
+    }
+
+    .scroll-arrow {
+      width: 20px;
+      height: 30px;
+      border: 1px solid var(--text-dim);
+      border-radius: 10px;
+      position: relative;
+    }
+
+    .scroll-arrow::after {
+      content: '';
+      position: absolute;
+      top: 4px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 3px; height: 6px;
+      background: var(--text-muted);
+      border-radius: 2px;
+      animation: scrollDot 1.5s ease-in-out infinite;
+    }
+
+    @keyframes scrollDot {
+      0% { top: 4px; opacity: 1; }
+      100% { top: 16px; opacity: 0; }
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 768px) {
+      nav { padding: 1rem 1.5rem; }
+      .nav-links { display: none; }
+      .how-grid { grid-template-columns: 1fr; }
+      .stat-item { min-width: 140px; padding: 1.5rem 2rem; }
+      footer { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav>
+    <div class="nav-logo">
+      <div class="dot"></div>
+      PhishGuard AI
+    </div>
+    <ul class="nav-links">
+      <li><a href="#features">Features</a></li>
+      <li><a href="#how">How It Works</a></li>
+      <li><a href="#stack">Tech Stack</a></li>
+      <li><a href="#setup">Setup</a></li>
+      <li><a href="https://github.com" class="nav-cta">GitHub ↗</a></li>
+    </ul>
+  </nav>
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-glow"></div>
+
+    <div class="badge">Machine Learning · NLP · Streamlit</div>
+
+    <h1>
+      Detect Phishing<br>
+      <span class="line-red">Before It Strikes</span>
+    </h1>
+
+    <p class="hero-sub">
+      An open-source AI tool that analyzes emails and messages for phishing attempts using TF-IDF and logistic regression — built with Python, scikit-learn, and Streamlit.
+    </p>
+
+    <div class="hero-actions">
+      <a href="https://github.com" class="btn-primary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+        View on GitHub
+      </a>
+      <a href="#setup" class="btn-secondary">
+        Quick Setup ↓
+      </a>
+    </div>
+
+    <div class="scroll-hint">
+      <div class="scroll-arrow"></div>
+      scroll
+    </div>
+  </div>
+
+  <!-- STATS -->
+  <div class="stats-strip">
+    <div class="stat-item reveal">
+      <div class="stat-num">TF-IDF</div>
+      <div class="stat-label">Feature Extraction</div>
+    </div>
+    <div class="stat-item reveal">
+      <div class="stat-num">LR</div>
+      <div class="stat-label">Logistic Regression</div>
+    </div>
+    <div class="stat-item reveal">
+      <div class="stat-num">27+</div>
+      <div class="stat-label">Suspicious Term Flags</div>
+    </div>
+    <div class="stat-item reveal">
+      <div class="stat-num">100%</div>
+      <div class="stat-label">Open Source</div>
+    </div>
+  </div>
+
+  <!-- FEATURES -->
+  <section id="features">
+    <div class="section-label">// capabilities</div>
+    <h2 class="section-title">Everything You Need to<br>Spot a Phishing Attempt</h2>
+    <p class="section-desc">A complete ML-powered dashboard with real-time analysis, visual highlighting, and actionable risk scores.</p>
+
+    <div class="features-grid reveal">
+      <div class="feature-card">
+        <div class="feat-icon red">🎯</div>
+        <div class="feat-title">Phishing Probability Score</div>
+        <div class="feat-desc">Get a precise confidence percentage showing how likely a message is a phishing attempt, with a clear High / Medium / Low risk level.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feat-icon amber">🔍</div>
+        <div class="feat-title">Suspicious Term Highlighting</div>
+        <div class="feat-desc">Automatically highlights dangerous keywords like "verify," "suspended," "urgent," and "gift card" directly in the email preview.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feat-icon green">📁</div>
+        <div class="feat-title">File Upload Support</div>
+        <div class="feat-desc">Upload a .txt email file or paste content directly. Instantly analyze without any manual copying or reformatting.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feat-icon blue">🛡️</div>
+        <div class="feat-title">Security Checklist</div>
+        <div class="feat-desc">An interactive checklist covering sender verification, link safety, password requests, urgency tactics, and attachment risks.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feat-icon red">📊</div>
+        <div class="feat-title">Kaggle Dataset Compatible</div>
+        <div class="feat-desc">Swap the built-in sample data with any CSV phishing dataset from Kaggle using a single CLI flag for better real-world accuracy.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feat-icon amber">⚡</div>
+        <div class="feat-title">Instant Local Deployment</div>
+        <div class="feat-desc">Three commands to clone, train, and run. No cloud setup, no API keys, no infrastructure — pure local machine learning.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section id="how" style="border-top: 1px solid var(--border);">
+    <div class="section-label">// architecture</div>
+    <h2 class="section-title">How It Works</h2>
+    <p class="section-desc">A clean NLP pipeline from raw email text to a calibrated risk prediction.</p>
+
+    <div class="how-grid">
+      <div class="steps reveal">
+        <div class="step">
+          <div class="step-num">01</div>
+          <div class="step-body">
+            <div class="step-title">Text Ingestion</div>
+            <div class="step-desc">Email text is received via paste or file upload. It's stripped, cleaned, and passed through a preprocessing pipeline.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">02</div>
+          <div class="step-body">
+            <div class="step-title">TF-IDF Vectorization</div>
+            <div class="step-desc">The text is converted to numeric features using term frequency–inverse document frequency with 1-gram and 2-gram tokenization.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">03</div>
+          <div class="step-body">
+            <div class="step-title">Logistic Regression</div>
+            <div class="step-desc">A balanced logistic regression classifier estimates the probability of phishing vs. safe for the given message vector.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">04</div>
+          <div class="step-body">
+            <div class="step-title">Risk Output</div>
+            <div class="step-desc">Results are displayed with a probability score, risk tier, suspicious term list, and highlighted email preview.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="terminal reveal">
+        <div class="term-bar">
+          <div class="term-dot t-red"></div>
+          <div class="term-dot t-yellow"></div>
+          <div class="term-dot t-green"></div>
+          <div class="term-title">phishing_detector — analysis</div>
+        </div>
+        <div class="term-body">
+          <div><span class="t-prompt">$ </span><span class="t-cmd">python train_model.py</span></div>
+          <div><span class="t-output">Model saved to models/phishing_detector.joblib</span></div>
+          <div>&nbsp;</div>
+          <div><span class="t-output">              precision    recall  f1-score</span></div>
+          <div><span class="t-output">    safe        0.94      0.91      0.92</span></div>
+          <div><span class="t-warn">    phishing    0.91      0.94      0.92</span></div>
+          <div>&nbsp;</div>
+          <div><span class="t-prompt">$ </span><span class="t-cmd">streamlit run app.py</span></div>
+          <div><span class="t-output">  You can now view your Streamlit app in</span></div>
+          <div><span class="t-output">  your browser.</span></div>
+          <div>&nbsp;</div>
+          <div><span class="t-output">  Local URL: http://localhost:8501</span></div>
+          <div>&nbsp;</div>
+          <div><span class="t-comment"># Analyzing: "Urgent account verification"</span></div>
+          <div><span class="t-err">  ⚠ Phishing Probability: 91.4%</span></div>
+          <div><span class="t-err">  ✖ Risk Level: HIGH</span></div>
+          <div><span class="t-warn">  ⚑ Terms: urgent, verify, account, login</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TECH STACK -->
+  <section id="stack" style="border-top: 1px solid var(--border);">
+    <div class="section-label">// tech stack</div>
+    <h2 class="section-title">Built With</h2>
+    <p class="section-desc">Standard, battle-tested Python libraries. No exotic dependencies or cloud dependencies required.</p>
+
+    <div class="tech-grid reveal">
+      <div class="tech-pill"><span class="tp-icon">🐍</span> Python 3.10+</div>
+      <div class="tech-pill"><span class="tp-icon">🎈</span> Streamlit 1.35+</div>
+      <div class="tech-pill"><span class="tp-icon">🤖</span> scikit-learn 1.4+</div>
+      <div class="tech-pill"><span class="tp-icon">🐼</span> pandas 2.2+</div>
+      <div class="tech-pill"><span class="tp-icon">💾</span> joblib 1.4+</div>
+      <div class="tech-pill"><span class="tp-icon">📐</span> TF-IDF Vectorizer</div>
+      <div class="tech-pill"><span class="tp-icon">📈</span> Logistic Regression</div>
+      <div class="tech-pill"><span class="tp-icon">🔤</span> N-gram Tokenization</div>
+    </div>
+  </section>
+
+  <!-- SETUP -->
+  <section id="setup" style="border-top: 1px solid var(--border);">
+    <div class="section-label">// quick start</div>
+    <h2 class="section-title">Get Running in<br>Under 2 Minutes</h2>
+    <p class="section-desc">Clone, install, train, run. No configuration files, no environment variables, no accounts needed.</p>
+
+    <div class="setup-steps reveal">
+      <div class="setup-step">
+        <div class="setup-num">1</div>
+        <div>
+          <h4>Clone the Repository</h4>
+          <pre>git clone https://github.com/your-username/ai-phishing-email-detector.git
+cd ai-phishing-email-detector</pre>
+        </div>
+      </div>
+      <div class="setup-step">
+        <div class="setup-num">2</div>
+        <div>
+          <h4>Create a Virtual Environment & Install Dependencies</h4>
+          <pre>python -m venv .venv
+.venv\Scripts\activate          # Windows
+# source .venv/bin/activate     # macOS/Linux
+pip install -r requirements.txt</pre>
+        </div>
+      </div>
+      <div class="setup-step">
+        <div class="setup-num">3</div>
+        <div>
+          <h4>Train the Model</h4>
+          <pre>python train_model.py</pre>
+        </div>
+      </div>
+      <div class="setup-step">
+        <div class="setup-num">4</div>
+        <div>
+          <h4>Launch the Dashboard</h4>
+          <pre>streamlit run app.py</pre>
+        </div>
+      </div>
+      <div class="setup-step">
+        <div class="setup-num">✦</div>
+        <div>
+          <h4>Optional: Use a Kaggle Dataset for Better Accuracy</h4>
+          <pre>python train_model.py --data path/to/your_dataset.csv</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA BANNER -->
+  <div class="cta-banner">
+    <h2>Open Source &amp; Free Forever</h2>
+    <p>Fork it, train it on your own data, or extend it with new models. MIT licensed — use it however you want.</p>
+    <div class="cta-buttons">
+      <a href="https://github.com" class="btn-primary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+        Star on GitHub
+      </a>
+      <a href="#features" class="btn-secondary">Learn More</a>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="foot-logo">PhishGuard AI</div>
+    <ul class="foot-links">
+      <li><a href="https://github.com">GitHub</a></li>
+      <li><a href="#features">Features</a></li>
+      <li><a href="#setup">Docs</a></li>
+      <li><a href="#">MIT License</a></li>
+    </ul>
+    <div class="foot-note">For educational purposes only.</div>
+  </footer>
+
+  <script>
+    // Scroll reveal
+    const reveals = document.querySelectorAll('.reveal');
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((e, i) => {
+        if (e.isIntersecting) {
+          setTimeout(() => e.target.classList.add('visible'), i * 80);
+        }
+      });
+    }, { threshold: 0.1 });
+    reveals.forEach(el => io.observe(el));
+
+    // Stagger feature cards
+    document.querySelectorAll('.feature-card').forEach((card, i) => {
+      card.style.animationDelay = `${i * 0.07}s`;
+    });
+  </script>
+</body>
+</html>
